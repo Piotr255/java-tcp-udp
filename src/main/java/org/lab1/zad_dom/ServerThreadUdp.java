@@ -12,7 +12,7 @@ public class ServerThreadUdp implements Runnable {
     private final Server server;
     private final DatagramSocket datagramSocket;
     @Override
-    public void run() {
+    public void run() { //
         try {
         while(true) {
             receiveMessage();
