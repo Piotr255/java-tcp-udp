@@ -1,7 +1,5 @@
 package org.lab1.zad_dom;
 
-import org.w3c.dom.ls.LSOutput;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -39,15 +37,15 @@ public class Client {
             this.serverHostname = serverHostname;
             this.serverPort = serverPort;
             socket = new Socket(serverHostname, serverPort);
-            datagramSocket = new DatagramSocket();
+            datagramSocket = new DatagramSocket(socket.getLocalPort());
             out = new PrintWriter(socket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             scanner = new Scanner(System.in);
             this.clientNickname = clientNickname;
             isActive = true;
-            asciiArt = new String(Files.readAllBytes(Paths.get("./ascii.txt")));
+            asciiArt = new String(Files.readAllBytes(Paths.get("src/main/java/org/lab1/zad_dom/ascii.txt")));
         } catch (IOException e) {
-            print("Couldn't create resources");
+            print("Couldn't create resources. " + e.getMessage());
             closeResources();
         }
     }
@@ -71,7 +69,7 @@ public class Client {
                 scanner.close();
             }
             if (datagramSocket != null && !datagramSocket.isClosed()) {
-                socket.close();
+                datagramSocket.close();
             }
         } catch (IOException e) {
             print("Error closing resources!");
@@ -90,11 +88,7 @@ public class Client {
             sendThread.start();
             Thread receiveUdp = new Thread(this::receiveMessageUdp);
             receiveUdp.start();
-            receiveThread.join();
-            sendThread.join();
-            receiveUdp.join();
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+            while (isActive);
         } finally {
             print("Closed resources");
             closeResources();
@@ -127,12 +121,22 @@ public class Client {
         }
     }
 
-    void receiveMessageUdp(){
+    void receiveMessageUdp() {
         while(isActive) {
-            byte[] buff = new byte[1024];
-            DatagramPacket datagramPacket = new DatagramPacket(buff, buff.length);
-            String message = new String(datagramPacket.getData(), 0, datagramPacket.getLength());
-            print(message);
+            try {
+                byte[] buff = new byte[1024];
+                DatagramPacket datagramPacket = new DatagramPacket(buff, buff.length);
+                datagramSocket.receive(datagramPacket);
+                String message = new String(datagramPacket.getData(), 0, datagramPacket.getLength());
+                print(message);
+            } catch (IOException e) {
+                if (isActive) {
+                    print("Problem receiving udp package: " + e.getMessage());
+                    closeResources();
+                    System.exit(1);
+                }
+
+            }
         }
     }
     
@@ -144,17 +148,15 @@ public class Client {
                     synchronized (this) {
                         isActive = false;
                         socket.close();
+                        datagramSocket.close();
                         break;
 
                     }
                 }
                 if (message.equals("U")) {
-                    message = scanner.nextLine();
-                    if (!message.isBlank()) {
-                        byte[] buff = asciiArt.getBytes();
-                        DatagramPacket datagramPacket = new DatagramPacket(buff, buff.length, InetAddress.getByName(serverHostname), serverPort);
-                        datagramSocket.send(datagramPacket);
-                    }
+                    byte[] buff = asciiArt.getBytes();
+                    DatagramPacket datagramPacket = new DatagramPacket(buff, buff.length, InetAddress.getByName(serverHostname), serverPort);
+                    datagramSocket.send(datagramPacket);
                 } else {
                     if (!message.isBlank()) {
                         out.println(message);
@@ -163,6 +165,8 @@ public class Client {
             }
         } catch (IOException e) {
             print("Error closing socket: " + e.getMessage());
+            closeResources();
+            System.exit(1);
         }
     }
 }

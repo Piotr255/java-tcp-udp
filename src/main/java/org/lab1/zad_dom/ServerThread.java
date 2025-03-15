@@ -4,12 +4,14 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.net.DatagramPacket;
+import java.net.InetAddress;
 import java.net.Socket;
 
 public class ServerThread implements Runnable {
     private final Socket clientSocket;
     private String clientNickname;
+    private final InetAddress clientAddress;
+    private final int clientPort;
     PrintWriter out;
     BufferedReader in;
     Server server;
@@ -24,6 +26,8 @@ public class ServerThread implements Runnable {
     public ServerThread(Socket clientSocket, Server server) {
         try {
             this.clientSocket = clientSocket;
+            clientAddress = clientSocket.getInetAddress();
+            clientPort = clientSocket.getPort();
             this.server = server;
             out = new PrintWriter(clientSocket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
@@ -83,4 +87,13 @@ public class ServerThread implements Runnable {
     public void receiveMessage(String message) {
         out.println(message);
     }
+
+    public int getClientPort() {
+        return clientPort;
+    }
+
+    public InetAddress getClientAddress() {
+        return clientAddress;
+    }
+
 }

@@ -42,8 +42,8 @@ bin/
 .DS_Store
 
 ### Not important exercises ###
-src/java/org/lab1/*.java/
-src/java/org/lab2/*.java/
-src/java/org/lab3/*.java/
-src/java/org/lab4/*.java/
-src/java/org/lab1/Main.java/
+src/main/java/org/lab1/*.java/
+src/main/java/org/lab2/*.java/
+src/main/java/org/lab3/*.java/
+src/main/java/org/lab4/*.java/
+src/main/java/org/lab1/Main.java/
