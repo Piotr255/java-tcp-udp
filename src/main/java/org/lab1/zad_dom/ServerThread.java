@@ -66,8 +66,7 @@ public class ServerThread implements Runnable {
             clientNickname = inputLine;
             System.out.println("New Client:" + clientNickname);
         } else {
-            System.err.println("Couldn't get nickname");
-            System.exit(-1);
+            System.out.println("Couldn't get nickname");
         }
         while ((inputLine = in.readLine()) != null) {
             server.broadcast(inputLine, this);

@@ -4,13 +4,13 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.Socket;
+import java.net.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Scanner;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 
 public class Client {
     public static void main(String[] args) {
@@ -23,6 +23,7 @@ public class Client {
     }
     private Socket socket;
     private DatagramSocket datagramSocket;
+    private MulticastSocket multicastSocket;
     private PrintWriter out;
     private BufferedReader in;
     private String clientNickname;
@@ -31,7 +32,9 @@ public class Client {
     private String serverHostname;
     private int serverPort;
     private String asciiArt;
-
+    private ExecutorService executorService;
+    private InetAddress group;
+    private int multicastPort;
     public Client(String serverHostname, int serverPort, String clientNickname) {
         try {
             this.serverHostname = serverHostname;
@@ -44,6 +47,13 @@ public class Client {
             this.clientNickname = clientNickname;
             isActive = true;
             asciiArt = new String(Files.readAllBytes(Paths.get("src/main/java/org/lab1/zad_dom/ascii.txt")));
+            executorService  = Executors.newFixedThreadPool(4);
+            multicastPort = 9999;
+            multicastSocket = new MulticastSocket(multicastPort);
+            multicastSocket.setLoopbackMode(true);
+            group = Inet4Address.getByName("228.5.6.7");
+            multicastSocket.joinGroup(group);
+            multicastSocket.setOption(StandardSocketOptions.IP_MULTICAST_IF, NetworkInterface.getByName("en0"));
         } catch (IOException e) {
             print("Couldn't create resources. " + e.getMessage());
             closeResources();
@@ -71,6 +81,12 @@ public class Client {
             if (datagramSocket != null && !datagramSocket.isClosed()) {
                 datagramSocket.close();
             }
+            if (executorService != null) {
+                executorService.shutdown();
+            }
+            if (multicastSocket != null && !multicastSocket.isClosed()) {
+                multicastSocket.close();
+            }
         } catch (IOException e) {
             print("Error closing resources!");
             System.exit(1);
@@ -82,13 +98,11 @@ public class Client {
     void start() {
         out.println(clientNickname);
         try {
-            Thread receiveThread = new Thread(this::receiveMessage);
-            receiveThread.start();
-            Thread sendThread = new Thread(this::sendMessage);
-            sendThread.start();
-            Thread receiveUdp = new Thread(this::receiveMessageUdp);
-            receiveUdp.start();
-            while (isActive);
+            executorService.submit(this::receiveMessage);
+            executorService.submit(this::sendMessage);
+            executorService.submit(this::receiveMessageUdp);
+            executorService.submit(this::receiveMessageMulticast);
+            while (isActive) Thread.onSpinWait();
         } finally {
             print("Closed resources");
             closeResources();
@@ -128,7 +142,7 @@ public class Client {
                 DatagramPacket datagramPacket = new DatagramPacket(buff, buff.length);
                 datagramSocket.receive(datagramPacket);
                 String message = new String(datagramPacket.getData(), 0, datagramPacket.getLength());
-                print(message);
+                print("receiveMessageUdp"+ message);
             } catch (IOException e) {
                 if (isActive) {
                     print("Problem receiving udp package: " + e.getMessage());
@@ -157,6 +171,11 @@ public class Client {
                     byte[] buff = asciiArt.getBytes();
                     DatagramPacket datagramPacket = new DatagramPacket(buff, buff.length, InetAddress.getByName(serverHostname), serverPort);
                     datagramSocket.send(datagramPacket);
+                } else if (message.equals("M")) {
+                    message = "test multicast";
+                    byte[] buff = message.getBytes();
+                    DatagramPacket datagramPacket = new DatagramPacket(buff, buff.length, group, multicastPort);
+                    datagramSocket.send(datagramPacket);
                 } else {
                     if (!message.isBlank()) {
                         out.println(message);
@@ -169,4 +188,24 @@ public class Client {
             System.exit(1);
         }
     }
+
+    void receiveMessageMulticast() {
+        while(isActive) {
+            try {
+                byte[] buff = new byte[1024];
+                DatagramPacket datagramPacket = new DatagramPacket(buff, buff.length);
+                multicastSocket.receive(datagramPacket);
+                String message = new String(datagramPacket.getData(), 0, datagramPacket.getLength());
+                print("Receive multi" + message);
+            } catch (IOException e) {
+                if (isActive) {
+                    print("Problem receiving multicast package: " + e.getMessage());
+                    closeResources();
+                    System.exit(1);
+                }
+
+            }
+        }
+    }
+
 }
