@@ -10,7 +10,6 @@ import java.nio.file.Paths;
 import java.util.Scanner;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
 
 public class Client {
     public static void main(String[] args) {
@@ -50,10 +49,8 @@ public class Client {
             executorService  = Executors.newFixedThreadPool(4);
             multicastPort = 9999;
             multicastSocket = new MulticastSocket(multicastPort);
-            multicastSocket.setLoopbackMode(true);
             group = Inet4Address.getByName("228.5.6.7");
             multicastSocket.joinGroup(group);
-            multicastSocket.setOption(StandardSocketOptions.IP_MULTICAST_IF, NetworkInterface.getByName("en0"));
         } catch (IOException e) {
             print("Couldn't create resources. " + e.getMessage());
             closeResources();
