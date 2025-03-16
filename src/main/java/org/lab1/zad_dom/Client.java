@@ -34,12 +34,14 @@ public class Client {
     private ExecutorService executorService;
     private InetAddress group;
     private int multicastPort;
+    private int myPort;
     public Client(String serverHostname, int serverPort, String clientNickname) {
         try {
             this.serverHostname = serverHostname;
             this.serverPort = serverPort;
             socket = new Socket(serverHostname, serverPort);
             datagramSocket = new DatagramSocket(socket.getLocalPort());
+            myPort = socket.getLocalPort();
             out = new PrintWriter(socket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             scanner = new Scanner(System.in);
@@ -79,14 +81,13 @@ public class Client {
                 datagramSocket.close();
             }
             if (executorService != null) {
-                executorService.shutdown();
+                executorService.shutdownNow();
             }
             if (multicastSocket != null && !multicastSocket.isClosed()) {
                 multicastSocket.close();
             }
         } catch (IOException e) {
             print("Error closing resources!");
-            System.exit(1);
         }
     }
 
@@ -128,6 +129,7 @@ public class Client {
                 synchronized (this) {
                     isActive = false;
                 }
+                closeResources();
             }
         }
     }
@@ -139,12 +141,11 @@ public class Client {
                 DatagramPacket datagramPacket = new DatagramPacket(buff, buff.length);
                 datagramSocket.receive(datagramPacket);
                 String message = new String(datagramPacket.getData(), 0, datagramPacket.getLength());
-                print("receiveMessageUdp"+ message);
+                print(message);
             } catch (IOException e) {
                 if (isActive) {
                     print("Problem receiving udp package: " + e.getMessage());
                     closeResources();
-                    System.exit(1);
                 }
 
             }
@@ -155,34 +156,37 @@ public class Client {
         try {
             while (isActive) {
                 String message = scanner.nextLine();
-                if (message.equals("end")) {
-                    synchronized (this) {
-                        isActive = false;
-                        socket.close();
-                        datagramSocket.close();
-                        break;
+                switch (message) {
+                    case "end" -> {
+                        synchronized (this) {
+                            isActive = false;
+                            socket.close();
+                            datagramSocket.close();
 
+                        }
                     }
-                }
-                if (message.equals("U")) {
-                    byte[] buff = asciiArt.getBytes();
-                    DatagramPacket datagramPacket = new DatagramPacket(buff, buff.length, InetAddress.getByName(serverHostname), serverPort);
-                    datagramSocket.send(datagramPacket);
-                } else if (message.equals("M")) {
-                    message = "test multicast";
-                    byte[] buff = message.getBytes();
-                    DatagramPacket datagramPacket = new DatagramPacket(buff, buff.length, group, multicastPort);
-                    datagramSocket.send(datagramPacket);
-                } else {
-                    if (!message.isBlank()) {
-                        out.println(message);
+                    case "U" -> {
+                        String msg = clientNickname + " U:\n" + asciiArt;
+                        byte[] buff = msg.getBytes();
+                        DatagramPacket datagramPacket = new DatagramPacket(buff, buff.length, InetAddress.getByName(serverHostname), serverPort);
+                        datagramSocket.send(datagramPacket);
+                    }
+                    case "M" -> {
+                        message = clientNickname + " M: " + scanner.nextLine();
+                        byte[] buff = message.getBytes();
+                        DatagramPacket datagramPacket = new DatagramPacket(buff, buff.length, group, multicastPort);
+                        datagramSocket.send(datagramPacket);
+                    }
+                    default -> {
+                        if (!message.isBlank()) {
+                            out.println(message);
+                        }
                     }
                 }
             }
         } catch (IOException e) {
             print("Error closing socket: " + e.getMessage());
             closeResources();
-            System.exit(1);
         }
     }
 
@@ -193,12 +197,13 @@ public class Client {
                 DatagramPacket datagramPacket = new DatagramPacket(buff, buff.length);
                 multicastSocket.receive(datagramPacket);
                 String message = new String(datagramPacket.getData(), 0, datagramPacket.getLength());
-                print("Receive multi" + message);
+                if (datagramPacket.getPort() != myPort) {
+                    print(message);
+                }
             } catch (IOException e) {
                 if (isActive) {
                     print("Problem receiving multicast package: " + e.getMessage());
                     closeResources();
-                    System.exit(1);
                 }
 
             }

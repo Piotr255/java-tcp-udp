@@ -16,14 +16,7 @@ public class ServerThread implements Runnable {
     BufferedReader in;
     Server server;
 
-    @Override
-    public String toString() {
-        return "ServerThread{" +
-                "clientNickname='" + clientNickname + '\'' +
-                '}';
-    }
-
-    public ServerThread(Socket clientSocket, Server server) {
+    public ServerThread(Socket clientSocket, Server server) throws IOException {
         try {
             this.clientSocket = clientSocket;
             clientAddress = clientSocket.getInetAddress();
@@ -33,12 +26,12 @@ public class ServerThread implements Runnable {
             in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
         } catch (IOException e) {
             closeResources();
-            System.err.println("Problem with starting resources");
-            throw new RuntimeException(e);
+            server.print("Problem with starting resources");
+            throw e;
         }
     }
 
-    private void closeResources() {
+    public void closeResources() {
         try {
             if (clientSocket != null && !clientSocket.isClosed()) {
                 clientSocket.close();
@@ -49,8 +42,9 @@ public class ServerThread implements Runnable {
             if (in != null) {
                 in.close();
             }
+            server.print("Closed resources from ServerThread");
         } catch (IOException e) {
-            System.err.println("Problem with closing resources");
+            server.print("Problem with closing resources");
             throw new RuntimeException(e);
         }
     }
@@ -64,18 +58,21 @@ public class ServerThread implements Runnable {
         String inputLine;
         if ((inputLine = in.readLine()) != null) {
             clientNickname = inputLine;
-            System.out.println("New Client:" + clientNickname);
+            server.print("New Client:" + clientNickname);
         } else {
-            System.out.println("Couldn't get nickname");
+            server.print("Couldn't get nickname");
         }
         while ((inputLine = in.readLine()) != null) {
             server.broadcast(inputLine, this);
         }
         } catch (IOException e) {
-            System.err.println("Error reading from socket input");
+            if (server.isListening()) {
+                server.print("Error reading from socket input");
+            }
+//            closeResources();
         } finally {
-            server.removeCLient(this);
             closeResources();
+            server.removeClient(this);
         }
     }
 

@@ -2,10 +2,10 @@ package org.lab1.zad_dom;
 
 import java.io.IOException;
 import java.net.ServerSocket;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Scanner;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -24,11 +24,12 @@ public class Server {
     private final List<ServerThread>  serverThreads;
     private final ExecutorService threadPool;
     private final ServerSocket serverSocket;
+    private ServerThreadUdp serverThreadUdp;
 
     Server(int port) throws IOException {
         this.port = port;
         listening = true;
-        serverThreads = new ArrayList<>();
+        serverThreads = new CopyOnWriteArrayList<>();
         //creating new threads is heavy operation, threadPool is more efficient solution
         threadPool = Executors.newFixedThreadPool(6);
         serverSocket = new ServerSocket(port);
@@ -36,7 +37,7 @@ public class Server {
 
     public void start() {
         try {
-            ServerThreadUdp serverThreadUdp = new ServerThreadUdp(port, this);
+            serverThreadUdp = new ServerThreadUdp(port, this);
             threadPool.submit(serverThreadUdp);
             threadPool.submit(this::endServer);
 
@@ -47,14 +48,20 @@ public class Server {
             }
         } catch (IOException e) {
             if(listening) {
-                System.err.println("Could not listen on port " + port);
-                System.exit(1);
+                System.err.println(e.getMessage());
             }
-            System.exit(0);
         } finally {
-            threadPool.shutdownNow();
+            closeAllResources();
+            threadPool.shutdown();
         }
 
+    }
+
+    private void closeAllResources() {
+        serverThreadUdp.closeResources();
+        for(ServerThread serverThread : serverThreads) {
+            serverThread.closeResources();
+        }
     }
 
     public synchronized void broadcast(String message, ServerThread sender){
@@ -67,17 +74,19 @@ public class Server {
         }
     }
 
-    public synchronized void removeCLient(ServerThread serverThread) {
+    public synchronized void removeClient(ServerThread serverThread) {
         serverThreads.remove(serverThread);
-        System.out.println("Usunięto: " + serverThread.getClientNickname());
+        if (serverThread.getClientNickname() != null){
+            print("Removed: " + serverThread.getClientNickname());
+        }
         printClients();
     }
 
     public void printClients(){
-        System.out.println("--------------");
-        System.out.println("Active users: ");
-        serverThreads.forEach(System.out::println);
-        System.out.println("--------------");
+        print("--------------");
+        print("Active users: ");
+        serverThreads.forEach((serverThread -> serverThread.server.print(serverThread.getClientNickname())));
+        print("--------------");
     }
 
     public List<ServerThread> getServerThreads() {
@@ -91,12 +100,23 @@ public class Server {
                 synchronized (this) {
                     listening = false;
                     try {
-                        serverSocket.close();
+                        if (serverSocket != null && !serverSocket.isClosed()) {
+                            serverSocket.close();
+                        }
                     } catch (IOException e) {
-                        throw new RuntimeException(e);
+                        print("Problem with closing socket:" + e.getMessage());
+                        System.exit(1);
                     }
                 }
             }
         }
+    }
+
+    public synchronized void print(String message) {
+        System.out.println(message);
+    }
+
+    public boolean isListening() {
+        return listening;
     }
 }

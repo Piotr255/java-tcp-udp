@@ -14,11 +14,13 @@ public class ServerThreadUdp implements Runnable {
     @Override
     public void run() { //
         try {
-        while(true) {
+        while(server.isListening()) {
             receiveMessage();
         }
         } catch (IOException e) {
-            System.out.println("Problem with receiving packets: " + e.getMessage());
+            if(server.isListening()) {
+                server.print("Problem with receiving packets: " + e.getMessage());
+            }
         } finally {
             closeResources();
         }
@@ -31,8 +33,8 @@ public class ServerThreadUdp implements Runnable {
             this.server = server;
             receiveBuff = new byte[buffSize];
         } catch (SocketException e) {
-            System.out.println("Problem creating udp socket: " + e.getMessage());
-            throw new RuntimeException();
+            server.print("Problem creating udp socket: " + e.getMessage());
+                throw new RuntimeException();
         }
     }
     private void sendMessage(String message, InetAddress otherClientAddress, int otherClientPort) throws IOException {
@@ -41,10 +43,12 @@ public class ServerThreadUdp implements Runnable {
         datagramSocket.send(datagramPacket);
     }
 
-    private void closeResources() {
+    public void closeResources() {
         if (datagramSocket != null && !datagramSocket.isClosed()) {
             datagramSocket.close();
+            server.print("Closed resources from ServerThreadUdp");
         }
+
     }
 
     private void receiveMessage() throws IOException {
